@@ -1,0 +1,32 @@
+[Unit]
+Description=Home Library (Next.js, port 8800)
+Documentation=file:///opt/home-library/DEPLOY.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/home-library
+EnvironmentFile=/opt/home-library/.env
+Environment=NODE_ENV=production
+# 显式 -H 127.0.0.1：只监听回环，外网一律经 Caddy 进来（TLS 在 Caddy 终结）。
+# 光设 HOSTNAME 环境变量不够，Next 16 仍会绑到 0.0.0.0，那样就能用
+# http://ip:8800 绕过 HTTPS 打开页面 —— 而非安全上下文下摄像头是用不了的，
+# 只会让人以为扫码功能坏了。
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 8800
+Restart=on-failure
+RestartSec=5
+User=root
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=home-library
+
+# 这台机器上还跑着别的服务，给本服务加一层基本隔离
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/home-library
+
+[Install]
+WantedBy=multi-user.target

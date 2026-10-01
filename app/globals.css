@@ -1,0 +1,342 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Neobrutalism 设计系统
+   粗描边 + 硬投影 + 高饱和色块 + 暖白底。
+   token 名沿用上一版（surface / text / primary …），组件不用改类名，
+   只是取值从暗色系换成了这套亮色系。
+--------------------------------------------------------------------------- */
+@theme {
+  /* 品牌色 */
+  --color-primary: #fdc800;         /* 主色是黄 —— 只能配深色字，绝不做文字色 */
+  --color-primary-strong: #e5b600;
+  --color-primary-soft: #fff3c4;
+  --color-secondary: #432dd7;
+  --color-secondary-soft: #e0e0ff;
+
+  /* 状态色 */
+  --color-success: #16a34a;
+  --color-success-soft: #c9f2d6;
+  --color-warning: #d97706;
+  --color-warning-soft: #fde6bf;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fbd5d5;
+
+  /* 表面：暖白打底，卡片纯白往上浮 */
+  --color-surface: #fbfbf9;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #f4f4f0;
+  --color-surface-3: #e8e8e2;
+
+  /* 描边就是正文色 —— neobrutalism 的边框不是分隔线，是结构 */
+  --color-border: #1c293c;
+  --color-border-strong: #1c293c;
+  --color-border-soft: #d8d8d2;
+
+  /* 文本
+     三档都在白/暖白底上过 WCAG AA 4.5:1。
+     faint 曾经是 #7a8595，只有 3.74:1 —— 底栏未选中的导航文字用的就是它，
+     那是真的要读的字，所以压深到 #6b7684（4.62:1）。 */
+  --color-text: #1c293c;      /* 14.7:1 */
+  --color-text-muted: #55606f; /* 6.4:1 */
+  --color-text-faint: #6b7684; /* 4.6:1 */
+
+  /* 字体 */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", monospace;
+
+  /* 排版比例 13/15/17/21/27/35 */
+  --text-2xs: 0.8125rem;
+  --text-xs: 0.9375rem;
+  --text-sm: 1.0625rem;
+  --text-md: 1.3125rem;
+  --text-lg: 1.6875rem;
+  --text-xl: 2.1875rem;
+
+  /* 间距 4/8/12/16/24/32 */
+  --spacing: 4px;
+
+  /* 圆角 */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+
+  /* 硬投影 —— 不带模糊，这是这套风格的签名 */
+  --shadow-brut: 4px 4px 0 var(--color-border);
+  --shadow-brut-sm: 2px 2px 0 var(--color-border);
+  --shadow-brut-lg: 6px 6px 0 var(--color-border);
+}
+
+@layer base {
+  html {
+    background: var(--color-surface);
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    line-height: 1.55;
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3 {
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+  }
+
+  /* 焦点环必须始终可见（WCAG 2.2 AA）。用次色，和黄色主色区分得开 */
+  :focus-visible {
+    outline: 3px solid var(--color-secondary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: var(--color-primary);
+    color: var(--color-text);
+  }
+
+  input, select, textarea, button {
+    font: inherit;
+    color: inherit;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* ---- 表面 ---- */
+  .card {
+    background: var(--color-surface-1);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-brut);
+  }
+
+  /* 列表里成排出现时用小投影，否则整页太吵 */
+  .card-flat {
+    background: var(--color-surface-1);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-brut-sm);
+  }
+
+  /* ---- 按钮 ---- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--color-border);
+    box-shadow: var(--shadow-brut-sm);
+    font-weight: 800;
+    font-size: var(--text-2xs);
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.08s, background-color 0.15s;
+    /* 触摸目标不小于 44px（WCAG 2.2 目标尺寸） */
+    min-height: 44px;
+    text-align: center;
+  }
+  /* 按下去真的"压下去" —— 位移和投影一起收 */
+  .btn:active:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  .btn-primary { background: var(--color-primary); color: var(--color-text); }
+  .btn-primary:hover:not(:disabled) { background: var(--color-primary-strong); }
+
+  .btn-secondary { background: var(--color-secondary); color: #fff; }
+  .btn-secondary:hover:not(:disabled) { filter: brightness(1.15); }
+
+  .btn-ghost { background: var(--color-surface-1); color: var(--color-text); }
+  .btn-ghost:hover:not(:disabled) { background: var(--color-surface-2); }
+
+  .btn-danger { background: var(--color-danger); color: #fff; }
+  .btn-danger:hover:not(:disabled) { filter: brightness(1.1); }
+
+  .btn-sm {
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: var(--text-2xs);
+  }
+
+  /* ---- 表单 ---- */
+  .field {
+    display: block;
+    width: 100%;
+    background: var(--color-surface-1);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 9px 12px;
+    min-height: 44px;
+    transition: box-shadow 0.12s, border-color 0.12s;
+  }
+  .field::placeholder { color: var(--color-text-faint); }
+  .field:hover { box-shadow: var(--shadow-brut-sm); }
+  .field:focus {
+    border-color: var(--color-secondary);
+    box-shadow: var(--shadow-brut-sm);
+    outline-offset: 0;
+  }
+  .field:disabled { background: var(--color-surface-2); opacity: 0.7; }
+
+  .label {
+    display: block;
+    font-size: var(--text-2xs);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: 6px;
+  }
+
+  .hint {
+    font-size: var(--text-2xs);
+    color: var(--color-text-muted);
+    line-height: 1.5;
+  }
+
+  /* ---- 徽标 ----
+     一律"色块 + 墨色描边 + 深色字"。
+     绝不用 #FDC800 / #D97706 这类颜色直接当白底上的文字色 —— 对比度不够。 */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-2xs);
+    font-weight: 800;
+    border: 2px solid var(--color-border);
+    background: var(--color-surface-1);
+    color: var(--color-text);
+    white-space: nowrap;
+  }
+  .chip-ok { background: var(--color-success-soft); color: #14532d; }
+  .chip-warn { background: var(--color-warning-soft); color: #7c3e00; }
+  .chip-danger { background: var(--color-danger-soft); color: #7f1d1d; }
+  .chip-info { background: var(--color-secondary-soft); color: #2a1b8f; }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    color: var(--color-text-muted);
+  }
+
+  .section-title {
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    color: var(--color-text-muted);
+  }
+}
+
+/* 横向溢出内容自己滚，页面本身永远不横向滚动 */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+.scroll-x::-webkit-scrollbar { height: 8px; }
+.scroll-x::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+}
+
+/* ---------------------------------------------------------------- 书脊标签打印
+ *
+ * 索书号只活在屏幕里的话，「按索书号排」这条规矩人是执行不了的 ——
+ * 站在书架前看不出这排书还有没有序，也不知道手里这本该插进哪儿。
+ * 所以要能把号印出来贴到书上，和图书馆一样。
+ *
+ * 用浏览器自带的打印，不引 PDF 库：家里那台打印机能出什么纸就用什么纸。
+ */
+.spine-sheet {
+  display: grid;
+  gap: 2mm;
+  justify-content: start;
+}
+
+/* 类名必须和表单的 .label 区分开 —— 撞了的话打印样式会连表单标签一起改，
+   而且「数一数页面上有几张标签」也会把表单标签算进去 */
+.spine-label {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 1mm;
+  background: #fff;
+  /* 剪的时候沿着框剪，所以边框必须打印出来 */
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.spine-band {
+  flex-shrink: 0;
+  padding: 0.5mm 0;
+  text-align: center;
+  font-size: 2.6mm;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.spine-call {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3mm;
+  padding: 0.5mm;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 3.2mm;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  word-break: break-all;
+}
+
+.spine-title {
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 0 0.5mm 0.5mm;
+  font-size: 2.2mm;
+  line-height: 1.15;
+  text-align: center;
+  /* 书名只是辅助，占两行就够，别把索书号挤掉 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+@media print {
+  /* 纸上只留标签：导航、页头、控件全部拿掉 */
+  aside, header, nav, .print\:hidden { display: none !important; }
+  main { padding: 0 !important; }
+  body { background: #fff; }
+  @page { margin: 8mm; }
+  .spine-label { break-inside: avoid; }
+}

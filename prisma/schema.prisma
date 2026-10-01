@@ -1,0 +1,263 @@
+// 家庭图书管理系统 — 数据模型
+// Home Library System — data model
+//
+// 设计约束 / design constraints:
+//  * Bookcase 自带房间坐标 (roomX/roomY/rotation)，即便当前只画 2D 地图。
+//    以后接入 DXF 户型图 / 3D 地图时不必重新设计数据模型（见 spec §8）。
+//  * sourceMeta 记录每个字段来自哪个数据源，便于人工校对。
+//  * summary(真实简介) 与 aiSummary(AI 生成) 永远分开存，前端才能视觉区分（F9）。
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Book {
+  id String @id @default(cuid())
+
+  // 标识符：ISBN 走图书，ISSN(+期号附加码) 走期刊 —— 见 spec §3.4
+  isbn13    String? @unique
+  isbn10    String?
+  issn      String?
+  issnAddon String? // ISSN 条码的 2 位/5 位附加码（期号）
+
+  title         String
+  subtitle      String?
+  originalTitle String?
+  authors       String[] @default([])
+  translators   String[] @default([])
+  publisher     String?
+  pubDate       String? // 自由格式："2019"、"2019-05"、"2019-05-01"
+  language      String? // zh / en / ru / ...
+  pageCount     Int?
+  binding       String? // 平装 / 精装 / 期刊
+  price         String?
+
+  // 物理尺寸。heightMm 用于层高校验，spineMm 用于容量计算。
+  // 两者都可留空 —— 留空时按页数估算（见 lib/capacity.ts）。
+  heightMm Int?
+  spineMm  Float?
+
+  // 简介：真实简介和 AI 简介分开存
+  summary     String?
+  aiSummary   String?
+  aiSummaryAt DateTime?
+
+  coverUrl String? // 远程 URL 或本地 /uploads/covers/xxx.jpg
+
+  sourceMeta   Json? // { "title": "googleBooks", "coverUrl": "openLibrary", ... }
+  completeness Int   @default(0) // 0-100，元数据完整度（借鉴 qa-catalogue 思路）
+  notes        String?
+
+  /** 数据源给的主题词。存下来是因为重新分类时还要靠它 —— 
+      第一版没存，结果重算 DDC 时只剩标题和简介，罪与罚被判成了心理学。 */
+  subjects String[] @default([])
+
+  // 中图法（主分类，见 lib/clc.ts）—— 索书号按它生成
+  clc       String?
+  clcSource String?
+
+  // 杜威十进分类（保留：OpenLibrary 的权威号是真数据，详情页仍展示）—— 见 lib/ddc.ts
+  // ddcSource 必须存：权威号(openLibrary) 和推断号(rules/ai) 在界面上要能区分
+  ddc        String?
+  ddcSource  String?
+  callNumber String? // "823 TOL"，展示用
+  // 排序键：DDC 按小数大小排，直接排字符串会把 331.041 排到 331.01 前面
+  callSortKey String @default("￿")
+
+  // 检索索引：小写标题+作者+出版社+中文拼音全拼+拼音首字母，见 lib/search.ts
+  searchIndex String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tags      BookTag[]
+  placement Placement?
+
+  @@index([title])
+  @@index([language])
+  @@index([createdAt])
+  @@index([callSortKey])
+  @@index([ddc])
+  @@index([clc])
+}
+
+model Bookcase {
+  id   String  @id @default(cuid())
+  name String
+  room String?
+
+  // 户型图上的位置。单位毫米，坐标系与 FloorPlan.geometry 一致。
+  // 没导入户型图时它就是个相对位置，导入之后就是真实平面坐标。
+  floorPlanId String?
+  floorPlan   FloorPlan? @relation(fields: [floorPlanId], references: [id], onDelete: SetNull)
+  roomId      String?
+  roomRef     Room?      @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  roomX    Float @default(0)
+  roomY    Float @default(0)
+  rotation Float @default(0)
+
+  widthMm Int? // 书柜整体宽度（仅作展示，容量按每层的 widthMm 算）
+  depthMm Int?
+  /** 柜体总高。3D 视图用；留空时按各层高度累加推算 */
+  heightMm Int?
+  /** 在户型图/3D 里的颜色，方便一眼区分 */
+  color String @default("#432DD7")
+  sortKey Int  @default(0)
+  note    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  levels Level[]
+
+  @@index([sortKey])
+  @@index([floorPlanId])
+  @@index([roomId])
+}
+
+model Level {
+  id         String   @id @default(cuid())
+  bookcaseId String
+  bookcase   Bookcase @relation(fields: [bookcaseId], references: [id], onDelete: Cascade)
+
+  levelIndex Int // 第几层，1 = 最下层
+  widthMm    Int
+  heightMm   Int // 净空高度
+  depthMm    Int
+  note       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  placements Placement[]
+  tagZones   TagZone[]
+
+  @@unique([bookcaseId, levelIndex])
+  @@index([bookcaseId])
+}
+
+model Placement {
+  id String @id @default(cuid())
+
+  bookId String @unique // 一本书同时只在一个位置
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  levelId String
+  level   Level  @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  orderInLevel Int @default(0)
+
+  // 用户手动确认过"确实放得下/已经放好了"
+  confirmedByUser Boolean @default(false)
+  // 临界情况的人工标注："差一点点但塞得下"
+  isNearFull      Boolean @default(false)
+
+  placedAt DateTime @default(now())
+
+  @@index([levelId])
+}
+
+model Tag {
+  id     String  @id @default(cuid())
+  name   String  @unique // 简朴标签："小说"、"历史"、"杂志"
+  nameEn String?
+  color  String  @default("#FDC800")
+  sortKey Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  books BookTag[]
+  zones TagZone[]
+}
+
+model BookTag {
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  tagId  String
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, tagId])
+  @@index([tagId])
+}
+
+// 某个标签"建议占用"的层。范围是动态的：容量检查会根据该标签书籍
+// 总宽度提示扩张/迁移，用户确认后才写入。
+model TagZone {
+  id      String @id @default(cuid())
+  tagId   String
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  levelId String
+  level   Level  @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([tagId, levelId])
+  @@index([levelId])
+}
+
+// 仅用于书架结构（Bookcase/Level）的增删改；加书/删书无需登录（F5）
+model AdminSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  userAgent String?
+
+  @@index([expiresAt])
+}
+
+// 户型图（DXF 导入）—— spec §8 的"未来功能"提前落地。
+// 几何在导入时就统一换算成毫米存好，前端只负责画，不用每次重新解析 DXF。
+model FloorPlan {
+  id       String  @id @default(cuid())
+  name     String
+  fileName String?
+  /** DxfShape[]，单位毫米 */
+  geometry Json
+  minX     Float
+  minY     Float
+  maxX     Float
+  maxY     Float
+  /** 原图单位与换算系数，排查坐标对不上时要用 */
+  sourceUnits String?
+  unitScale   Float   @default(1)
+  sortKey     Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookcases Bookcase[]
+  rooms     Room[]
+}
+
+// 房间：来自户型图里的闭合多段线，可命名、可着色
+model Room {
+  id          String    @id @default(cuid())
+  floorPlanId String
+  floorPlan   FloorPlan @relation(fields: [floorPlanId], references: [id], onDelete: Cascade)
+  name        String
+  color       String    @default("#E0E0FF")
+  /** 房间轮廓多边形，[[x,y],...]，单位毫米，与户型图同坐标系 */
+  polygon     Json
+  areaMm2     Float     @default(0)
+  sortKey     Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookcases Bookcase[]
+
+  @@index([floorPlanId])
+}
+
+// 可调参数：页数→书脊宽度系数、临界阈值等
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
